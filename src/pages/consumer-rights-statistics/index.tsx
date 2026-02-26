@@ -61,7 +61,7 @@ const Component: React.FC = () => {
                 if (record.category) {
                     return { rowSpan: record.rowSpan };
                 }
-                if (['t1', 't2'].includes(record.key)) {
+                if (['t1', 't2', '18'].includes(record.key)) {
                     return { colSpan: 0 };
                 }
                 return { rowSpan: 0 };
@@ -74,7 +74,7 @@ const Component: React.FC = () => {
             key: 'indicatorName',
             width: 450, // 增加宽度以减少密集的换行
             onCell: (record) => {
-                if (['t1', 't2'].includes(record.key)) {
+                if (['t1', 't2', '18'].includes(record.key)) {
                     return { colSpan: 2 }; // Span across category and indicatorName
                 }
                 return {};
