@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react';
-import { DatePicker, Radio, Button, Table, Cascader } from 'antd';
+import { DatePicker, Radio, Button, Table, Cascader, Flex } from 'antd';
 import type { TableProps } from 'antd';
 import { SearchOutlined, ExportOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { agencyData } from '../law-enforcement-statistics/agencyData';
@@ -140,52 +140,49 @@ const Component: React.FC = () => {
             <div className="w-full max-w-[1600px] mx-auto">
 
                 {/* 标题 */}
-                <div className="pt-4 pb-8 mb-4">
-                    <h1 className="text-3xl font-bold text-gray-800 text-center tracking-wide">质量监督抽查统计表</h1>
+                <div style={{ padding: '24px 0 32px 0', textAlign: 'center' }}>
+                    <h1 style={{ fontSize: 28, fontWeight: 'bold', color: '#1f2937', letterSpacing: '0.05em', margin: 0 }}>质量监督抽查统计表</h1>
                 </div>
 
                 {/* 搜索栏 */}
-                <div className="w-full mb-6 flex flex-nowrap items-center justify-between overflow-x-auto pb-2">
-
+                <Flex justify="space-between" align="center" style={{ marginBottom: 24, overflowX: 'auto', paddingBottom: 8 }}>
                     {/* 左侧表单区域 */}
-                    <div className="flex flex-nowrap items-center gap-x-8 min-w-max">
+                    <Flex gap={32} align="center" style={{ minWidth: 'max-content' }}>
                         {/* 办案机构 */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600 whitespace-nowrap">办案机构：</span>
+                        <Flex gap={8} align="center">
+                            <span style={{ fontSize: 14, color: '#4b5563', whiteSpace: 'nowrap' }}>办案机构：</span>
                             <Cascader
-                                className="w-64"
+                                style={{ width: 256 }}
                                 placeholder="请选择办案机构"
                                 options={agencyData}
                                 changeOnSelect
                                 allowClear
                                 showSearch={{ filter: (inputValue, path) => path.some(option => option.label.toLowerCase().indexOf(inputValue.toLowerCase()) > -1) }}
                             />
-                        </div>
+                        </Flex>
 
                         {/* 处罚决定日期 */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600 whitespace-nowrap">处罚决定日期：</span>
-                            <RangePicker className="w-[280px]" placeholder={['开始日期', '结束日期']} />
-                        </div>
+                        <Flex gap={8} align="center">
+                            <span style={{ fontSize: 14, color: '#4b5563', whiteSpace: 'nowrap' }}>处罚决定日期：</span>
+                            <RangePicker style={{ width: 280 }} placeholder={['开始日期', '结束日期']} />
+                        </Flex>
 
                         {/* 报表周期 */}
-                        <div className="flex items-center ml-2">
-                            <Radio.Group onChange={(e) => setReportType(e.target.value)} value={reportType} className="flex gap-4">
-                                <Radio value="monthly">月报</Radio>
-                                <Radio value="q1">一季报</Radio>
-                                <Radio value="q2">二季报</Radio>
-                                <Radio value="q3">三季报</Radio>
-                                <Radio value="yearly">年报</Radio>
-                            </Radio.Group>
-                        </div>
-                    </div>
+                        <Radio.Group onChange={(e) => setReportType(e.target.value)} value={reportType} style={{ marginLeft: 8 }}>
+                            <Radio value="monthly">月报</Radio>
+                            <Radio value="q1">一季报</Radio>
+                            <Radio value="q2">二季报</Radio>
+                            <Radio value="q3">三季报</Radio>
+                            <Radio value="yearly">年报</Radio>
+                        </Radio.Group>
+                    </Flex>
 
                     {/* 右侧操作按钮 */}
-                    <div className="flex items-center gap-2 ml-4 min-w-max">
-                        <Button type="primary" icon={<SearchOutlined />} className="bg-blue-600">查询</Button>
+                    <Flex gap={8} align="center" style={{ marginLeft: 16, minWidth: 'max-content' }}>
+                        <Button type="primary" icon={<SearchOutlined />} style={{ backgroundColor: '#2563eb' }}>查询</Button>
                         <Button icon={<ExportOutlined />}>导出</Button>
-                    </div>
-                </div>
+                    </Flex>
+                </Flex>
 
                 {/* 表格容器 */}
                 <div className="w-full pb-8">
