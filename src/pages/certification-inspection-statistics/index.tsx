@@ -66,7 +66,7 @@ const Component: React.FC = () => {
                 }
                 return { rowSpan: 0 };
             },
-            render: (text) => <div style={{ whiteSpace: 'pre-line', lineHeight: '1.5', color: '#333' }}>{text}</div>
+            render: (text) => <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', color: '#111', fontWeight: 500, padding: '4px' }}>{text}</div>
         },
         {
             title: '指标名称',
@@ -83,16 +83,28 @@ const Component: React.FC = () => {
                 const isHeader = ['甲', '合计'].includes(text);
                 const isSubHeader = text.includes('违法行为') && !text.includes('其中：');
 
-                let paddingLeft = 0;
-                if (text.startsWith('其中：')) paddingLeft = 16;
-                if (text.startsWith(' ')) paddingLeft = 32;
+                let paddingLeft = 16; // 默认左侧一点留白，比紧贴好
+                if (isHeader || isSubHeader) paddingLeft = 16;
+                else if (text.startsWith('其中：')) paddingLeft = 32;
+                else if (text.startsWith('       ')) {
+                    // 替换前置空格为空，然后增加 padding
+                    text = text.trim();
+                    paddingLeft = 72; // 深层缩进
+                } else if (text.startsWith('      ')) {
+                    text = text.trim();
+                    paddingLeft = 72; // 检验检测下面的深层缩进
+                }
 
                 return (
                     <div style={{
                         paddingLeft,
-                        fontWeight: isHeader || isSubHeader ? 500 : 400,
-                        color: isHeader ? '#111' : '#333',
-                        textAlign: isHeader ? 'center' : 'left'
+                        paddingTop: 8,
+                        paddingBottom: 8,
+                        fontWeight: isHeader || isSubHeader ? 600 : 400,
+                        color: isHeader || isSubHeader ? '#1f2937' : '#4b5563',
+                        textAlign: isHeader ? 'center' : 'left',
+                        whiteSpace: 'pre-wrap', // 允许文字换行
+                        lineHeight: 1.6
                     }}>
                         {text}
                     </div>
