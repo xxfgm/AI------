@@ -43,7 +43,7 @@ const mockData: ConsumerData[] = [
     { key: '15', indicatorName: '网络交易平台提供者未在其平台显著位置明示七日无理由退货规则及配套的有关制度，或者未在技术上保证消费者能够便利、完整地阅览和保存', code: '16', totalCases: 0, normalCases: 0, amount: 0, fineAmount: 0, confiscatedAmount: 0, transferredCases: 0 },
     { key: '16', indicatorName: '网络商品销售者不能够完全恢复到初始状态的无理由退货商品，且未通过显著的方式明确标注商品实际情况', code: '17', totalCases: 0, normalCases: 0, amount: 0, fineAmount: 0, confiscatedAmount: 0, transferredCases: 0 },
     { key: '17', indicatorName: '其他', code: '18', totalCases: 21, normalCases: 17, amount: 41.245254, fineAmount: 18.889894, confiscatedAmount: 22.35536, transferredCases: 1 },
-    // 将原图中破环结构的 "其中：" 转移至其他下方（保持缩进与其它表格一致）
+    // 保持和图片完全一致的缩进输出
     { key: '18', category: '', rowSpan: 0, indicatorName: '其中：欺诈消费者行为', code: '19', totalCases: 15, normalCases: 14, amount: 8.511494, fineAmount: 8.412194, confiscatedAmount: 0.0993, transferredCases: 1 },
 ];
 
@@ -81,11 +81,13 @@ const Component: React.FC = () => {
             },
             render: (text) => {
                 const isHeader = ['甲', '合计'].includes(text);
-                const isSubHeader = ['商品消费案件', '服务消费案件', '其他'].includes(text);
+                const isSubHeader = ['商品消费案件', '服务消费案件', '其他', '其中：欺诈消费者行为'].includes(text);
 
                 let paddingLeft = 16;
-                // 将底部的特殊行进行缩进并调低字重，避免破坏表格右侧数据的统一感
-                if (text.startsWith('其中：')) paddingLeft = 32;
+                // 取消原本优化的强制缩进，维持原图直根直出的感觉
+                // 如果需要和图一模一样，原图中的 '其中：欺诈消费者行为' 是紧贴最左侧或者和 '其他' 一模一样缩进的
+                // 这里我们给它和普通表头一致的基础边距并且字重强化不减弱
+                if (text.startsWith('其中：') && !text.includes('欺诈')) paddingLeft = 32;
 
                 return (
                     <div style={{
