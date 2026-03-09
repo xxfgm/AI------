@@ -96,8 +96,13 @@ const Component: React.FC = () => {
             align: 'center',
             width: 80,
             onCell: (record) => {
-                if (['t1', 't2'].includes(record.key)) return { colSpan: 3 };
-                const spanBoth = ['12', '16', '19', '23', '24', '29', '30'].includes(record.key);
+                const isHeader = ['t1', 't2'].includes(record.key);
+                const isFooter = ['29', '30'].includes(record.key);
+                
+                if (isHeader) return { colSpan: 3 };
+                if (isFooter) return { colSpan: 2, rowSpan: 1 };
+
+                const spanBoth = ['12', '16', '19', '23', '24'].includes(record.key);
                 if (spanBoth) return { colSpan: 2, rowSpan: record.rowSpan1 || 1 };
                 
                 // Rows under a merged rowSpan1, colSpan2 area should be hidden
@@ -107,7 +112,23 @@ const Component: React.FC = () => {
                 if (record.category1) return { rowSpan: record.rowSpan1, colSpan: 1 };
                 return { rowSpan: 0 };
             },
-            render: (text) => <div className="category-text">{text}</div>
+            render: (text, record) => {
+                if (['t1', 't2', '29', '30'].includes(record.key)) {
+                    const isMainHeader = ['甲', '合计'].includes(record.indicatorName);
+                    return (
+                        <div style={{
+                            fontWeight: isMainHeader ? 600 : 400,
+                            color: isMainHeader ? '#111' : '#4b5563',
+                            textAlign: 'center',
+                            whiteSpace: 'pre-wrap',
+                            lineHeight: 1.6
+                        }}>
+                            {record.indicatorName}
+                        </div>
+                    );
+                }
+                return <div className="category-text">{text}</div>;
+            }
         },
         {
             title: '',
@@ -128,18 +149,18 @@ const Component: React.FC = () => {
             key: 'indicatorName',
             width: 400,
             onCell: (record) => {
-                if (['t1', 't2'].includes(record.key)) return { colSpan: 0 };
+                if (['t1', 't2', '29', '30'].includes(record.key)) return { colSpan: 0 };
                 return {};
             },
             render: (text, record) => {
-                const isMain = ['甲', '合计'].includes(text);
+                const isHeader = ['甲', '合计'].includes(text);
                 const isSubHeader = text === '小计';
                 return (
                     <div style={{
-                        paddingLeft: isMain ? 0 : 16,
-                        fontWeight: isMain || isSubHeader ? 600 : 400,
-                        color: isMain || isSubHeader ? '#111' : '#4b5563',
-                        textAlign: isMain ? 'center' : 'left'
+                        paddingLeft: isHeader ? 0 : 16,
+                        fontWeight: isHeader || isSubHeader ? 600 : 400,
+                        color: isHeader || isSubHeader ? '#111' : '#4b5563',
+                        textAlign: isHeader ? 'center' : 'left'
                     }}>
                         {text}
                     </div>
