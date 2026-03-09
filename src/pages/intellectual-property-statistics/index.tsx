@@ -1,3 +1,6 @@
+/**
+ * @name 知识产权案件统计表 (按行为分类)
+ */
 import React, { useState } from 'react';
 import { DatePicker, Radio, Button, Table, Cascader, Flex } from 'antd';
 import type { TableProps } from 'antd';
@@ -117,11 +120,30 @@ const Component: React.FC = () => {
                     return { rowSpan: record.rowSpan };
                 }
                 if (['t1', 't2', '8', '9', '10'].includes(record.key)) {
-                    return { colSpan: 0 };
+                    return { colSpan: 2 };
                 }
                 return { rowSpan: 0 };
             },
-            render: (text) => <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', color: '#111', fontWeight: 500, padding: '4px' }}>{text}</div>
+            render: (text, record) => {
+                if (['t1', 't2', '8', '9', '10'].includes(record.key)) {
+                    const isHeader = ['甲', '合计'].includes(record.indicatorName);
+                    return (
+                        <div style={{
+                            paddingLeft: isHeader ? 0 : 16,
+                            paddingTop: 8,
+                            paddingBottom: 8,
+                            fontWeight: isHeader ? 600 : 400,
+                            color: isHeader ? '#1f2937' : '#4b5563',
+                            textAlign: isHeader ? 'center' : 'left',
+                            whiteSpace: 'pre-wrap',
+                            lineHeight: 1.6
+                        }}>
+                            {record.indicatorName}
+                        </div>
+                    );
+                }
+                return <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', color: '#111', fontWeight: 500, padding: '4px' }}>{text}</div>;
+            }
         },
         {
             title: '指标名称',
@@ -131,7 +153,7 @@ const Component: React.FC = () => {
             fixed: 'left',
             onCell: (record) => {
                 if (['t1', 't2', '8', '9', '10'].includes(record.key)) {
-                    return { colSpan: 2 }; // Span across category and indicatorName
+                    return { colSpan: 0 }; // Swallowed by category span
                 }
                 return {};
             },
@@ -162,18 +184,18 @@ const Component: React.FC = () => {
             align: 'center',
             width: 60,
         },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>案件总\n数\n(件)</span>, dataIndex: 'col1', key: 'col1', align: 'center', width: 80, render: renderDataCell },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>普通程\n序</span>, dataIndex: 'col2', key: 'col2', align: 'center', width: 80, render: renderDataCell },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>达成调\n解案件</span>, dataIndex: 'col3', key: 'col3', align: 'center', width: 80, render: renderDataCell },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>案值50\n万元以\n上案件</span>, dataIndex: 'col4', key: 'col4', align: 'center', width: 80, render: renderDataCell },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>挂牌督\n办件</span>, dataIndex: 'col5', key: 'col5', align: 'center', width: 80, render: renderDataCell },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>涉外案\n件</span>, dataIndex: 'col6', key: 'col6', align: 'center', width: 80, render: renderDataCell },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>案件总<br/>数<br/>(件)</span>, dataIndex: 'col1', key: 'col1', align: 'center', width: 80, render: renderDataCell },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>普通程<br/>序</span>, dataIndex: 'col2', key: 'col2', align: 'center', width: 80, render: renderDataCell },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>达成调<br/>解案件</span>, dataIndex: 'col3', key: 'col3', align: 'center', width: 80, render: renderDataCell },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>案值50<br/>万元以<br/>上案件</span>, dataIndex: 'col4', key: 'col4', align: 'center', width: 80, render: renderDataCell },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>挂牌督<br/>办件</span>, dataIndex: 'col5', key: 'col5', align: 'center', width: 80, render: renderDataCell },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>涉外案<br/>件</span>, dataIndex: 'col6', key: 'col6', align: 'center', width: 80, render: renderDataCell },
         { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>案值 (万元)</span>, dataIndex: 'col7', key: 'col7', align: 'center', width: 100, render: (t) => t },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>罚款金额\n(万元)</span>, dataIndex: 'col8', key: 'col8', align: 'center', width: 100, render: (t) => t },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>没收金额\n(万元)</span>, dataIndex: 'col9', key: 'col9', align: 'center', width: 100, render: (t) => t },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>挽回经\n济损失\n(万元)</span>, dataIndex: 'col10', key: 'col10', align: 'center', width: 90, render: (t) => t },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>挽回涉\n外企业\n损失</span>, dataIndex: 'col11', key: 'col11', align: 'center', width: 80, render: (t) => t },
-        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>移送司\n法机关\n案件\n(件)</span>, dataIndex: 'col12', key: 'col12', align: 'center', width: 80, render: renderDataCell },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>罚款金额<br/>(万元)</span>, dataIndex: 'col8', key: 'col8', align: 'center', width: 100, render: (t) => t },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>没收金额<br/>(万元)</span>, dataIndex: 'col9', key: 'col9', align: 'center', width: 100, render: (t) => t },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>挽回经<br/>济损失<br/>(万元)</span>, dataIndex: 'col10', key: 'col10', align: 'center', width: 90, render: (t) => t },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>挽回涉<br/>外企业<br/>损失</span>, dataIndex: 'col11', key: 'col11', align: 'center', width: 80, render: (t) => t },
+        { title: <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>移送司<br/>法机关<br/>案件<br/>(件)</span>, dataIndex: 'col12', key: 'col12', align: 'center', width: 80, render: renderDataCell },
     ];
 
     return (
