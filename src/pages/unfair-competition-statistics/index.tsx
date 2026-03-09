@@ -90,17 +90,17 @@ const Component: React.FC = () => {
 
     const columns: TableProps<UnfairData>['columns'] = [
         {
-            title: '',
+            title: '指标名称',
             dataIndex: 'category1',
             key: 'category1',
             align: 'center',
             width: 80,
+            onHeaderCell: () => ({ colSpan: 3 }),
             onCell: (record) => {
                 const isHeader = ['t1', 't2'].includes(record.key);
                 const isFooter = ['29', '30'].includes(record.key);
                 
-                if (isHeader) return { colSpan: 3 };
-                if (isFooter) return { colSpan: 2, rowSpan: 1 };
+                if (isHeader || isFooter) return { colSpan: 3, rowSpan: 1 };
 
                 const spanBoth = ['12', '16', '19', '23', '24'].includes(record.key);
                 if (spanBoth) return { colSpan: 2, rowSpan: record.rowSpan1 || 1 };
@@ -117,9 +117,10 @@ const Component: React.FC = () => {
                     const isMainHeader = ['甲', '合计'].includes(record.indicatorName);
                     return (
                         <div style={{
+                            paddingLeft: isMainHeader ? 0 : 16,
                             fontWeight: isMainHeader ? 600 : 400,
                             color: isMainHeader ? '#111' : '#4b5563',
-                            textAlign: 'center',
+                            textAlign: isMainHeader ? 'center' : 'left',
                             whiteSpace: 'pre-wrap',
                             lineHeight: 1.6
                         }}>
@@ -136,6 +137,7 @@ const Component: React.FC = () => {
             key: 'category2',
             align: 'center',
             width: 80,
+            onHeaderCell: () => ({ colSpan: 0 }),
             onCell: (record) => {
                 if (['t1', 't2', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30'].includes(record.key)) return { colSpan: 0 };
                 if (record.category2) return { rowSpan: record.rowSpan2 };
@@ -144,10 +146,11 @@ const Component: React.FC = () => {
             render: (text) => <div className="category-text">{text}</div>
         },
         {
-            title: '指标名称',
+            title: '',
             dataIndex: 'indicatorName',
             key: 'indicatorName',
             width: 400,
+            onHeaderCell: () => ({ colSpan: 0 }),
             onCell: (record) => {
                 if (['t1', 't2', '29', '30'].includes(record.key)) return { colSpan: 0 };
                 return {};
