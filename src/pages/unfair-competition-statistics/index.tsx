@@ -1,3 +1,6 @@
+/**
+ * @name 不正当竞争案件统计表
+ */
 import React, { useState } from 'react';
 import { DatePicker, Radio, Button, Table, Cascader, Flex } from 'antd';
 import type { TableProps } from 'antd';
@@ -37,7 +40,7 @@ const mockData: UnfairData[] = [
     { key: '6', indicatorName: '其他足以引人误认为是他人商品或者与他人存在特定联系的混淆行为', code: '6', totalCases: 5, caseValue: 6.68717, fineAmount: 6.6, confiscatedAmount: 0.08717, transferredToDept: 0, transferredToJudicial: 0, enforcementMeasures: 0, internetRelated: 3 },
 
     // 侵犯商业秘密 (L2) - 5 rows
-    { key: '7', category2: '侵犯\n商业\n秘密', rowSpan2: 5, indicatorName: '以盗窃、贿赂、欺诈、胁迫或者其他不正当手段获取权利人的商业秘密', code: '7', totalCases: 0, caseValue: 0, fineAmount: 0, confiscatedAmount: 0, transferredToDept: 0, transferredToJudicial: 0, enforcementMeasures: 0, internetRelated: 0 },
+    { key: '7', category2: '侵犯\n商业\n秘密', rowSpan2: 5, indicatorName: '以盗窃、贿赂、欺诈、胁迫、利诱或者其他不正当手段获取权利人的商业秘密', code: '7', totalCases: 0, caseValue: 0, fineAmount: 0, confiscatedAmount: 0, transferredToDept: 0, transferredToJudicial: 0, enforcementMeasures: 0, internetRelated: 0 },
     { key: '8', indicatorName: '披露、使用或者允许他人使用以前项手段获取的权利人的商业秘密', code: '8', totalCases: 0, caseValue: 0, fineAmount: 0, confiscatedAmount: 0, transferredToDept: 0, transferredToJudicial: 0, enforcementMeasures: 0, internetRelated: 0 },
     { key: '9', indicatorName: '违反保密义务或者违反权利人有关保守商业秘密的要求，披露、使用或者允许他人使用其所掌握的商业秘密', code: '9', totalCases: 0, caseValue: 0, fineAmount: 0, confiscatedAmount: 0, transferredToDept: 0, transferredToJudicial: 0, enforcementMeasures: 0, internetRelated: 0 },
     { key: '10', indicatorName: '教唆、引诱、帮助他人违反保密义务或者违反权利人有关保守商业秘密的要求，获取、披露、使用或者允许他人使用权利人的商业秘密', code: '10', totalCases: 0, caseValue: 0, fineAmount: 0, confiscatedAmount: 0, transferredToDept: 0, transferredToJudicial: 0, enforcementMeasures: 0, internetRelated: 0 },
@@ -93,9 +96,15 @@ const Component: React.FC = () => {
             align: 'center',
             width: 80,
             onCell: (record) => {
-                if (record.key === '29' || record.key === '30') return { colSpan: 2 };
                 if (['t1', 't2'].includes(record.key)) return { colSpan: 3 };
-                if (record.category1) return { rowSpan: record.rowSpan1 };
+                const spanBoth = ['12', '16', '19', '23', '24', '29', '30'].includes(record.key);
+                if (spanBoth) return { colSpan: 2, rowSpan: record.rowSpan1 || 1 };
+                
+                // Rows under a merged rowSpan1, colSpan2 area should be hidden
+                const underSpanBoth = ['13', '14', '15', '17', '18', '20', '21', '22', '25', '26', '27', '28'].includes(record.key);
+                if (underSpanBoth) return { colSpan: 0, rowSpan: 0 };
+
+                if (record.category1) return { rowSpan: record.rowSpan1, colSpan: 1 };
                 return { rowSpan: 0 };
             },
             render: (text) => <div className="category-text">{text}</div>
@@ -107,7 +116,7 @@ const Component: React.FC = () => {
             align: 'center',
             width: 80,
             onCell: (record) => {
-                if (['t1', 't2', '29', '30'].includes(record.key)) return { colSpan: 0 };
+                if (['t1', 't2', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30'].includes(record.key)) return { colSpan: 0 };
                 if (record.category2) return { rowSpan: record.rowSpan2 };
                 return { rowSpan: 0 };
             },
