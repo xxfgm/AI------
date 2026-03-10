@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+.page-container {
+    min-height: 100vh;
+    background-color: #f3f4f6;
+    padding: 24px;
+}
+
+.content-wrapper {
+    max-width: 1600px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    padding: 32px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.page-header-title {
+    text-align: center;
+    margin-bottom: 32px !important;
+    font-weight: 700 !important;
+    color: #111827 !important;
+    letter-spacing: 0.1em;
+}
+
+.filter-bar {
+    margin-bottom: 24px;
+    padding: 20px;
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+.filter-label {
+    font-size: 14px;
+    color: #4b5563;
+}
+
+.btn-primary {
+    background-color: #3b82f6 !important;
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+.ant-table-thead > tr > th {
+    background-color: #f9fafb !important;
+    color: #111827 !important;
+    font-weight: 600 !important;
+    text-align: center !important;
+    padding: 12px 8px !important;
+    white-space: pre-wrap !important;
+}
+
+.sub-column-title {
+    font-size: 12px;
+    font-weight: normal;
+    color: #6b7280;
+}
+
+.side-category-text {
+    white-space: pre-wrap;
+    line-height: 1.4;
+    color: #111827;
+    font-weight: 500;
+}
+
+.clickable-value {
+    color: #2563eb;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+}
+
+.clickable-value:hover {
+    text-decoration: underline;
+}
+
+.table-header-row td {
+    background-color: #fefefe !important;
+    font-weight: 600 !important;
+}
+
+.multi-line-header {
+    white-space: pre-wrap !important;
+}
+
+.ant-table-cell {
+    border-color: #e5e7eb !important;
+}
+
+.ant-table-row:hover td {
+    background-color: #f0f9ff !important;
+}

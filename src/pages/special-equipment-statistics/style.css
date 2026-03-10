@@ -6,10 +6,10 @@
   padding: 24px;
 }
 
-.special-equipment-statistics .page-header-title {
+.special-equipment-statistics .page-title {
   text-align: center;
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 600;
   color: #1e293b;
   margin-bottom: 32px;
 }
@@ -72,6 +72,12 @@
   font-weight: 600;
 }
 
+/* Sub-category indentation */
+.special-equipment-statistics .indent-item {
+  padding-left: 20px;
+  color: #64748b;
+}
+
 /* Link style for numbers */
 .special-equipment-statistics .link-num {
   color: #2563eb;
@@ -87,13 +93,4 @@
   margin-left: auto;
   display: flex;
   gap: 12px;
-}
-
-/* Row grouping style */
-.special-equipment-statistics .ant-table-cell-fix-left {
-  background-color: #ffffff !important;
-}
-
-.special-equipment-statistics .total-row .ant-table-cell-fix-left {
-  background-color: #f8fafc !important;
 }
