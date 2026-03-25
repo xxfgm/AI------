@@ -4,7 +4,8 @@ import path from 'path';
 
 export function handleAssetsRequest(req: IncomingMessage, res: ServerResponse): boolean {
   if (req.url && req.url.startsWith('/assets/')) {
-    const relativePath = req.url.startsWith('/') ? req.url.slice(1) : req.url;
+    const pathname = req.url.split('?')[0];
+    const relativePath = pathname.startsWith('/') ? pathname.slice(1) : pathname;
     const assetPath = path.resolve(process.cwd(), 'admin', relativePath);
     
     console.log('[主项目] 请求 asset:', req.url, '-> 路径:', assetPath, '存在:', fs.existsSync(assetPath));

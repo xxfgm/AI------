@@ -1,36 +1,92 @@
 import type { IncomingMessage, ServerResponse } from 'http';
+import { logVirtualHtmlDebug } from '../logger';
 import fs from 'fs';
 import path from 'path';
+import { readEntriesManifest } from '../../utils/entriesManifest';
 
 /**
  * 路径标准化器
  *
  * 新路径格式（推荐）：
- * - /pages/{name}          → 页面预览
- * - /pages/{name}/spec     → 页面文档
- * - /elements/{name}       → 元素预览
- * - /elements/{name}/spec  → 元素文档
+ * - /prototypes/{name}          → 原型预览
+ * - /prototypes/{name}/spec     → 原型文档
+ * - /components/{name}          → 组件预览
+ * - /components/{name}/spec     → 组件文档
  * - /themes/{name}         → 主题预览
  * - /themes/{name}/spec    → 主题文档
- * - /assets/docs/{name}    → 系统文档
- * - /assets/libraries/{name} → 前端库文档
+ * - /docs/{name}           → 系统文档
  *
  * 旧路径格式（兼容）：
  * - /{name}.html                    → 重定向到新格式
  * - /{name}/spec.html               → 重定向到新格式
- * - /pages/{name}/index.html        → 重定向到新格式
- * - /elements/{name}/index.html     → 重定向到新格式
- * - /assets/docs/{name}/spec.html   → 重定向到新格式
+ * - /prototypes/{name}/index.html        → 重定向到新格式
+ * - /components/{name}/index.html     → 重定向到新格式
+ * - /assets/docs/{name}/spec.html  → 重定向到新格式
  */
 
 export interface NormalizedPath {
-  type: 'pages' | 'elements' | 'themes' | 'assets-docs' | 'assets-libraries';
+  type: 'prototypes' | 'components' | 'themes' | 'docs';
   name: string;
   action: 'preview' | 'spec';
   isLegacy: boolean;
   originalUrl: string;
   normalizedUrl: string;
   versionId?: string;
+}
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function decodePathSegments(parts: string[]): string[] {
+  return parts.map((part) => safeDecodeURIComponent(part));
+}
+
+export function encodeRoutePath(pathname: string): string {
+  const hasLeadingSlash = pathname.startsWith('/');
+  const hasTrailingSlash = pathname.endsWith('/') && pathname !== '/';
+  const encoded = pathname
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(safeDecodeURIComponent(segment)))
+    .join('/');
+
+  const withLeadingSlash = hasLeadingSlash ? `/${encoded}` : encoded;
+  if (hasTrailingSlash && withLeadingSlash) {
+    return `${withLeadingSlash}/`;
+  }
+  return withLeadingSlash || (hasLeadingSlash ? '/' : '');
+}
+
+function resolveEntryTypeByName(name: string): 'prototypes' | 'components' | 'themes' | null {
+  const projectRoot = process.cwd();
+  const normalizedName = String(name || '').trim();
+  if (!normalizedName) return null;
+
+  const scanOrder: Array<'prototypes' | 'components' | 'themes'> = ['prototypes', 'components', 'themes'];
+  for (const type of scanOrder) {
+    const entryPath = path.resolve(projectRoot, 'src', type, normalizedName, 'index.tsx');
+    if (fs.existsSync(entryPath)) {
+      return type;
+    }
+  }
+
+  try {
+    const manifest = readEntriesManifest(projectRoot);
+    for (const type of scanOrder) {
+      if (manifest.items?.[`${type}/${normalizedName}`]) {
+        return type;
+      }
+    }
+  } catch {
+    // ignore manifest read errors and keep null fallback
+  }
+
+  return null;
 }
 
 /**
@@ -41,69 +97,85 @@ export function normalizePath(url: string): NormalizedPath | null {
   const params = new URLSearchParams(queryString || '');
   const versionId = params.get('ver') || undefined;
 
+  // Vite 内部的 html-proxy 请求需要保留原样，不能参与旧路径重定向。
+  // 否则浏览器在加载 /index.html?html-proxy&index=*.js 时会被 301 到页面地址，
+  // 最终表现为 script 资源加载失败。
+  if (params.has('html-proxy')) {
+    return null;
+  }
+
   // 移除末尾的 .html
-  let cleanUrl = urlWithoutQuery.replace(/\.html$/, '');
+  const cleanUrl = urlWithoutQuery.replace(/\.html$/, '');
 
   // 解析路径部分
   const pathParts = cleanUrl.split('/').filter(Boolean);
 
   if (pathParts.length === 0) return null;
 
-  // 情况 1: /pages/{name} 或 /pages/{name}/spec 或 /pages/{name}/index
-  if (pathParts[0] === 'pages' && pathParts.length >= 2) {
-    const name = pathParts[1];
-    const lastPart = pathParts[2];
+  // 文档静态资源路径不参与页面路由标准化，交给资源处理器兜底。
+  if (pathParts[0] === 'docs' && pathParts.includes('assets')) {
+    return null;
+  }
 
-    if (!lastPart || lastPart === 'index') {
-      // /pages/{name} 或 /pages/{name}/index.html
+  // 情况 1: /prototypes/{name} 或 /prototypes/{name}/spec 或 /prototypes/{name}/index
+  if (pathParts[0] === 'prototypes' && pathParts.length >= 2) {
+    const decodedNameParts = decodePathSegments(pathParts.slice(1));
+    const lastPart = decodedNameParts[decodedNameParts.length - 1];
+    const hasActionSegment = lastPart === 'index' || lastPart === 'spec';
+    const name = (hasActionSegment ? decodedNameParts.slice(0, -1) : decodedNameParts).join('/');
+
+    if (!hasActionSegment || lastPart === 'index') {
+      // /prototypes/{name} 或 /prototypes/{name}/index.html
       return {
-        type: 'pages',
+        type: 'prototypes',
         name,
         action: 'preview',
         isLegacy: lastPart === 'index',
         originalUrl: url,
-        normalizedUrl: `/pages/${name}${versionId ? `?ver=${versionId}` : ''}`,
+        normalizedUrl: `${encodeRoutePath(`/prototypes/${name}`)}${versionId ? `?ver=${versionId}` : ''}`,
         versionId
       };
     } else if (lastPart === 'spec') {
-      // /pages/{name}/spec 或 /pages/{name}/spec.html
+      // /prototypes/{name}/spec 或 /prototypes/{name}/spec.html
       return {
-        type: 'pages',
+        type: 'prototypes',
         name,
         action: 'spec',
         isLegacy: urlWithoutQuery.includes('.html'),
         originalUrl: url,
-        normalizedUrl: `/pages/${name}/spec${versionId ? `?ver=${versionId}` : ''}`,
+        normalizedUrl: `${encodeRoutePath(`/prototypes/${name}/spec`)}${versionId ? `?ver=${versionId}` : ''}`,
         versionId
       };
     }
   }
 
-  // 情况 2: /elements/{name} 或 /elements/{name}/spec 或 /elements/{name}/index
-  if (pathParts[0] === 'elements' && pathParts.length >= 2) {
-    const name = pathParts[1];
-    const lastPart = pathParts[2];
+  // 情况 2: /components/{name} 或 /components/{name}/spec 或 /components/{name}/index
+  if (pathParts[0] === 'components' && pathParts.length >= 2) {
+    const decodedNameParts = decodePathSegments(pathParts.slice(1));
+    const lastPart = decodedNameParts[decodedNameParts.length - 1];
+    const hasActionSegment = lastPart === 'index' || lastPart === 'spec';
+    const name = (hasActionSegment ? decodedNameParts.slice(0, -1) : decodedNameParts).join('/');
 
-    if (!lastPart || lastPart === 'index') {
-      // /elements/{name} 或 /elements/{name}/index.html
+    if (!hasActionSegment || lastPart === 'index') {
+      // /components/{name} 或 /components/{name}/index.html
       return {
-        type: 'elements',
+        type: 'components',
         name,
         action: 'preview',
         isLegacy: lastPart === 'index',
         originalUrl: url,
-        normalizedUrl: `/elements/${name}${versionId ? `?ver=${versionId}` : ''}`,
+        normalizedUrl: `${encodeRoutePath(`/components/${name}`)}${versionId ? `?ver=${versionId}` : ''}`,
         versionId
       };
     } else if (lastPart === 'spec') {
-      // /elements/{name}/spec 或 /elements/{name}/spec.html
+      // /components/{name}/spec 或 /components/{name}/spec.html
       return {
-        type: 'elements',
+        type: 'components',
         name,
         action: 'spec',
         isLegacy: urlWithoutQuery.includes('.html'),
         originalUrl: url,
-        normalizedUrl: `/elements/${name}/spec${versionId ? `?ver=${versionId}` : ''}`,
+        normalizedUrl: `${encodeRoutePath(`/components/${name}/spec`)}${versionId ? `?ver=${versionId}` : ''}`,
         versionId
       };
     }
@@ -111,10 +183,12 @@ export function normalizePath(url: string): NormalizedPath | null {
 
   // 情况 3: /themes/{name} 或 /themes/{name}/spec 或 /themes/{name}/index
   if (pathParts[0] === 'themes' && pathParts.length >= 2) {
-    const name = pathParts[1];
-    const lastPart = pathParts[2];
+    const decodedNameParts = decodePathSegments(pathParts.slice(1));
+    const lastPart = decodedNameParts[decodedNameParts.length - 1];
+    const hasActionSegment = lastPart === 'index' || lastPart === 'spec';
+    const name = (hasActionSegment ? decodedNameParts.slice(0, -1) : decodedNameParts).join('/');
 
-    if (!lastPart || lastPart === 'index') {
+    if (!hasActionSegment || lastPart === 'index') {
       // /themes/{name} 或 /themes/{name}/index.html
       return {
         type: 'themes',
@@ -122,7 +196,7 @@ export function normalizePath(url: string): NormalizedPath | null {
         action: 'preview',
         isLegacy: lastPart === 'index',
         originalUrl: url,
-        normalizedUrl: `/themes/${name}${versionId ? `?ver=${versionId}` : ''}`,
+        normalizedUrl: `${encodeRoutePath(`/themes/${name}`)}${versionId ? `?ver=${versionId}` : ''}`,
         versionId
       };
     } else if (lastPart === 'spec') {
@@ -133,171 +207,109 @@ export function normalizePath(url: string): NormalizedPath | null {
         action: 'spec',
         isLegacy: urlWithoutQuery.includes('.html'),
         originalUrl: url,
-        normalizedUrl: `/themes/${name}/spec${versionId ? `?ver=${versionId}` : ''}`,
+        normalizedUrl: `${encodeRoutePath(`/themes/${name}/spec`)}${versionId ? `?ver=${versionId}` : ''}`,
         versionId
       };
     }
   }
 
-  // 情况 4: /assets/docs/{name} 或 /assets/docs/{name}/spec.html（旧格式）
+  // 情况 4: /docs/{name} 或 /docs/{name}/spec.html
+  if (pathParts[0] === 'docs' && pathParts.length >= 2) {
+    const nameParts = decodePathSegments(pathParts.slice(1));
+    const lastPart = nameParts[nameParts.length - 1];
+
+    if (lastPart === 'spec') {
+      // /docs/{name}/spec.html（旧格式）→ /docs/{name}
+      const name = nameParts.slice(0, -1).join('/');
+      return {
+        type: 'docs',
+        name,
+        action: 'spec',
+        isLegacy: true,
+        originalUrl: url,
+        normalizedUrl: encodeRoutePath(`/docs/${name}`),
+        versionId
+      };
+    }
+
+    // /docs/{name}
+    const name = nameParts.join('/');
+    return {
+      type: 'docs',
+      name,
+      action: 'spec',
+      isLegacy: false,
+      originalUrl: url,
+      normalizedUrl: encodeRoutePath(`/docs/${name}`),
+      versionId
+    };
+  }
+
+  // 情况 5: /assets/docs/{name} 或 /assets/docs/{name}/spec.html（旧格式兼容）
   if (pathParts[0] === 'assets' && pathParts[1] === 'docs' && pathParts.length >= 3) {
-    const nameParts = pathParts.slice(2);
+    const nameParts = decodePathSegments(pathParts.slice(2));
     const lastPart = nameParts[nameParts.length - 1];
 
     if (lastPart === 'spec') {
-      // /assets/docs/{name}/spec.html（旧格式）→ /assets/docs/{name}
+      // /assets/docs/{name}/spec.html（旧格式）→ /docs/{name}
       const name = nameParts.slice(0, -1).join('/');
       return {
-        type: 'assets-docs',
+        type: 'docs',
         name,
         action: 'spec',
         isLegacy: true,
         originalUrl: url,
-        normalizedUrl: `/assets/docs/${name}`,
-        versionId
-      };
-    } else {
-      // /assets/docs/{name}（新格式）
-      const name = nameParts.join('/');
-      return {
-        type: 'assets-docs',
-        name,
-        action: 'spec',
-        isLegacy: false,
-        originalUrl: url,
-        normalizedUrl: `/assets/docs/${name}`,
+        normalizedUrl: encodeRoutePath(`/docs/${name}`),
         versionId
       };
     }
-  }
 
-  // 情况 5: /assets/libraries/{name} 或 /assets/libraries/{name}/spec.html（旧格式）
-  if (pathParts[0] === 'assets' && pathParts[1] === 'libraries' && pathParts.length >= 3) {
-    const nameParts = pathParts.slice(2);
-    const lastPart = nameParts[nameParts.length - 1];
-
-    if (lastPart === 'spec') {
-      // /assets/libraries/{name}/spec.html（旧格式）→ /assets/libraries/{name}
-      const name = nameParts.slice(0, -1).join('/');
-      return {
-        type: 'assets-libraries',
-        name,
-        action: 'spec',
-        isLegacy: true,
-        originalUrl: url,
-        normalizedUrl: `/assets/libraries/${name}`,
-        versionId
-      };
-    } else {
-      // /assets/libraries/{name}（新格式）
-      const name = nameParts.join('/');
-      return {
-        type: 'assets-libraries',
-        name,
-        action: 'spec',
-        isLegacy: false,
-        originalUrl: url,
-        normalizedUrl: `/assets/libraries/${name}`,
-        versionId
-      };
-    }
+    // /assets/docs/{name}（旧格式）→ /docs/{name}
+    const name = nameParts.join('/');
+    return {
+      type: 'docs',
+      name,
+      action: 'spec',
+      isLegacy: true,
+      originalUrl: url,
+      normalizedUrl: encodeRoutePath(`/docs/${name}`),
+      versionId
+    };
   }
 
   // 情况 6: /{name}.html 或 /{name}/spec.html（旧格式，需要查找是 page 还是 element）
   if (pathParts.length === 1 && urlWithoutQuery.endsWith('.html')) {
-    const name = pathParts[0];
+    const name = safeDecodeURIComponent(pathParts[0]);
 
-    // 读取 entries.json 判断类型
-    const entriesPath = path.resolve(process.cwd(), 'entries.json');
-    if (fs.existsSync(entriesPath)) {
-      try {
-        const entries = JSON.parse(fs.readFileSync(entriesPath, 'utf8'));
-        const jsEntries = entries.js || {};
-
-        // 查找匹配的 entry
-        if (jsEntries[`pages/${name}`]) {
-          return {
-            type: 'pages',
-            name,
-            action: 'preview',
-            isLegacy: true,
-            originalUrl: url,
-            normalizedUrl: `/pages/${name}${versionId ? `?ver=${versionId}` : ''}`,
-            versionId
-          };
-        } else if (jsEntries[`elements/${name}`]) {
-          return {
-            type: 'elements',
-            name,
-            action: 'preview',
-            isLegacy: true,
-            originalUrl: url,
-            normalizedUrl: `/elements/${name}${versionId ? `?ver=${versionId}` : ''}`,
-            versionId
-          };
-        } else if (jsEntries[`themes/${name}`]) {
-          return {
-            type: 'themes',
-            name,
-            action: 'preview',
-            isLegacy: true,
-            originalUrl: url,
-            normalizedUrl: `/themes/${name}${versionId ? `?ver=${versionId}` : ''}`,
-            versionId
-          };
-        }
-      } catch (e) {
-        console.error('[路径标准化] 读取 entries.json 失败:', e);
-      }
+    const type = resolveEntryTypeByName(name);
+    if (type) {
+      return {
+        type,
+        name,
+        action: 'preview',
+        isLegacy: true,
+        originalUrl: url,
+        normalizedUrl: `${encodeRoutePath(`/${type}/${name}`)}${versionId ? `?ver=${versionId}` : ''}`,
+        versionId
+      };
     }
   }
 
   // 情况 7: /{name}/spec.html（旧格式）
   if (pathParts.length === 2 && pathParts[1] === 'spec' && urlWithoutQuery.endsWith('.html')) {
-    const name = pathParts[0];
+    const name = safeDecodeURIComponent(pathParts[0]);
 
-    // 读取 entries.json 判断类型
-    const entriesPath = path.resolve(process.cwd(), 'entries.json');
-    if (fs.existsSync(entriesPath)) {
-      try {
-        const entries = JSON.parse(fs.readFileSync(entriesPath, 'utf8'));
-        const jsEntries = entries.js || {};
-
-        // 查找匹配的 entry
-        if (jsEntries[`pages/${name}`]) {
-          return {
-            type: 'pages',
-            name,
-            action: 'spec',
-            isLegacy: true,
-            originalUrl: url,
-            normalizedUrl: `/pages/${name}/spec${versionId ? `?ver=${versionId}` : ''}`,
-            versionId
-          };
-        } else if (jsEntries[`elements/${name}`]) {
-          return {
-            type: 'elements',
-            name,
-            action: 'spec',
-            isLegacy: true,
-            originalUrl: url,
-            normalizedUrl: `/elements/${name}/spec${versionId ? `?ver=${versionId}` : ''}`,
-            versionId
-          };
-        } else if (jsEntries[`themes/${name}`]) {
-          return {
-            type: 'themes',
-            name,
-            action: 'spec',
-            isLegacy: true,
-            originalUrl: url,
-            normalizedUrl: `/themes/${name}/spec${versionId ? `?ver=${versionId}` : ''}`,
-            versionId
-          };
-        }
-      } catch (e) {
-        console.error('[路径标准化] 读取 entries.json 失败:', e);
-      }
+    const type = resolveEntryTypeByName(name);
+    if (type) {
+      return {
+        type,
+        name,
+        action: 'spec',
+        isLegacy: true,
+        originalUrl: url,
+        normalizedUrl: `${encodeRoutePath(`/${type}/${name}/spec`)}${versionId ? `?ver=${versionId}` : ''}`,
+        versionId
+      };
     }
   }
 
@@ -312,9 +324,34 @@ export function handlePathRedirect(req: IncomingMessage, res: ServerResponse): b
 
   const normalized = normalizePath(req.url);
 
+  if (
+    normalized &&
+    !normalized.isLegacy &&
+    normalized.action === 'preview'
+  ) {
+    const htmlEntryPath = path.resolve(process.cwd(), 'src', normalized.type, normalized.name, 'index.html');
+    if (fs.existsSync(htmlEntryPath)) {
+      const params = new URLSearchParams(req.url.split('?')[1] || '');
+      const query = params.toString();
+      const redirectUrl = `${encodeRoutePath(`/${normalized.type}/${normalized.name}/index.html`)}${query ? `?${query}` : ''}`;
+
+      res.statusCode = 302;
+      res.setHeader('Location', redirectUrl);
+      res.end();
+      return true;
+    }
+  }
+
   if (normalized && normalized.isLegacy) {
+    if (normalized.action === 'preview') {
+      const htmlEntryPath = path.resolve(process.cwd(), 'src', normalized.type, normalized.name, 'index.html');
+      if (fs.existsSync(htmlEntryPath)) {
+        return false;
+      }
+    }
+
     // 旧格式，重定向到新格式
-    console.log('[路径标准化] 重定向:', normalized.originalUrl, '→', normalized.normalizedUrl);
+    logVirtualHtmlDebug('路径重定向:', normalized.originalUrl, '→', normalized.normalizedUrl);
 
     res.statusCode = 301; // 永久重定向
     res.setHeader('Location', normalized.normalizedUrl);

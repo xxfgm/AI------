@@ -12,7 +12,8 @@ export function handleHackCssClear(req: IncomingMessage, res: ServerResponse): b
     
     req.on('end', () => {
       try {
-        const { path: targetPath } = JSON.parse(body);
+        const { path: rawTargetPath } = JSON.parse(body);
+        const targetPath = decodeURIComponent(String(rawTargetPath || ''));
         
         if (!targetPath) {
           res.statusCode = 400;
@@ -22,10 +23,10 @@ export function handleHackCssClear(req: IncomingMessage, res: ServerResponse): b
         }
 
         const pathParts = targetPath.split('/').filter(Boolean);
-        if (pathParts.length < 2 || !['elements', 'pages'].includes(pathParts[0])) {
+        if (pathParts.length < 2 || !['components', 'prototypes'].includes(pathParts[0])) {
           res.statusCode = 400;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Invalid path format. Expected: elements/xxx or pages/xxx' }));
+          res.end(JSON.stringify({ error: 'Invalid path format. Expected: components/xxx or prototypes/xxx' }));
           return;
         }
 

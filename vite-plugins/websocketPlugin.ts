@@ -4,7 +4,7 @@ import type { IncomingMessage } from 'http';
 import fs from 'fs';
 import path from 'path';
 import extractZip from 'extract-zip';
-import { exec } from 'child_process';
+import { runCommand } from '../scripts/utils/command-runtime.mjs';
 
 export interface WebSocketMessage {
   type: string;
@@ -26,6 +26,7 @@ interface UploadSession {
   transferId: string;
   pageName: string;
   displayName?: string;
+  outputRelativeDir: string;
   fileName: string;
   mode: 'zip' | 'files';
   totalChunks: number;
@@ -45,6 +46,7 @@ interface HandleMessageContext {
 }
 
 const IGNORED_EXTRACT_ENTRIES = new Set(['__MACOSX', '.DS_Store']);
+const nodeCommand = process.execPath;
 
 function ensureDir(dirPath: string) {
   if (!fs.existsSync(dirPath)) {
@@ -86,14 +88,50 @@ function isValidDisplayName(value?: string) {
   return text.length > 0 && text.length <= 200;
 }
 
+function normalizeRelativeDir(value: string) {
+  return value
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter(Boolean)
+    .join('/');
+}
+
+function resolveOutputRelativeDir(data: any, fallbackName: string) {
+  const candidates = [
+    data?.outputRelativeDir,
+    data?.outputPath,
+    data?.targetPath,
+    data?.targetDir,
+    data?.folderPath,
+    data?.relativePath,
+    data?.pagePath,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const normalized = normalizeRelativeDir(candidate.trim());
+    if (!normalized) continue;
+    if (!isSafeRelativePath(normalized)) return null;
+
+    const segments = normalized.split('/');
+    if (segments.length === 0 || segments.some(segment => !isSafeName(segment))) {
+      return null;
+    }
+
+    return normalized;
+  }
+
+  return fallbackName;
+}
+
+function resolvePrototypeOutputDir(projectRoot: string, outputRelativeDir: string) {
+  return path.join(projectRoot, 'src', 'prototypes', ...outputRelativeDir.split('/'));
+}
+
 function sendWsMessage(ws: WebSocket, payload: any) {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(payload));
   }
-}
-
-function quoteForShell(value: string) {
-  return `"${String(value).replace(/["\\$`]/g, '\\$&')}"`;
 }
 
 /**
@@ -482,6 +520,7 @@ function handleMessage(
         const totalBytes = typeof data.totalBytes === 'number' ? data.totalBytes : undefined;
         const fileNameRaw = String(data.fileName || 'chrome-export.zip');
         const fileName = path.basename(fileNameRaw || 'chrome-export.zip');
+        const outputRelativeDir = resolveOutputRelativeDir(data, pageName);
 
         if (!transferId || !isSafeName(transferId)) {
           return sendWsMessage(ws, { type: 'chrome-export:error', message: 'transferId is invalid' });
@@ -491,6 +530,9 @@ function handleMessage(
         }
         if (!isValidDisplayName(displayName)) {
           return sendWsMessage(ws, { type: 'chrome-export:error', transferId, message: 'displayName is invalid' });
+        }
+        if (!outputRelativeDir) {
+          return sendWsMessage(ws, { type: 'chrome-export:error', transferId, message: 'output path is invalid' });
         }
         if (mode === 'zip' && (!Number.isFinite(totalChunks) || totalChunks <= 0)) {
           return sendWsMessage(ws, { type: 'chrome-export:error', transferId, message: 'totalChunks is invalid' });
@@ -509,6 +551,7 @@ function handleMessage(
           transferId,
           pageName,
           displayName,
+          outputRelativeDir,
           fileName,
           mode,
           totalChunks,
@@ -669,35 +712,50 @@ function handleMessage(
             }
 
             const scriptPath = path.join(context.projectRoot, 'scripts', 'chrome-export-converter.mjs');
-            const displayNameArg = session.displayName ? ` --display-name ${quoteForShell(session.displayName)}` : '';
-            const command = `node "${scriptPath}" "${sourceDir}" "${outputName}"${displayNameArg}`;
+            const commandArgs = [scriptPath, sourceDir, outputName];
+            if (session.displayName) {
+              commandArgs.push('--display-name', session.displayName);
+            }
+            commandArgs.push('--target-dir', session.outputRelativeDir);
 
             sendWsMessage(ws, { type: 'chrome-export:status', transferId, stage: 'importing' });
 
-            exec(command, (error, stdout, stderr) => {
-              if (error) {
+            void runCommand({
+              command: nodeCommand,
+              args: commandArgs,
+              cwd: context.projectRoot,
+              capture: true,
+            }).then((result) => {
+              if (result.code !== 0) {
                 sendWsMessage(ws, {
                   type: 'chrome-export:error',
                   transferId,
-                  message: error.message || 'import failed'
+                  message: result.stderr || result.stdout || 'import failed'
                 });
               } else {
-                const outputDir = path.join(context.projectRoot, 'src', 'pages', outputName);
+                const outputDir = resolvePrototypeOutputDir(context.projectRoot, session.outputRelativeDir);
                 sendWsMessage(ws, {
                   type: 'chrome-export:done',
                   transferId,
                   pageName: outputName,
                   displayName: session.displayName,
+                  outputRelativeDir: session.outputRelativeDir,
                   sourceDir,
                   outputDir,
-                  stdout: stdout ? String(stdout).trim() : undefined,
-                  stderr: stderr ? String(stderr).trim() : undefined
+                  stdout: result.stdout ? String(result.stdout).trim() : undefined,
+                  stderr: result.stderr ? String(result.stderr).trim() : undefined
                 });
                 if (fs.existsSync(transferDir)) {
                   fs.rmSync(transferDir, { recursive: true, force: true });
                 }
                 context.uploadSessions.delete(transferId);
               }
+            }).catch((error: any) => {
+              sendWsMessage(ws, {
+                type: 'chrome-export:error',
+                transferId,
+                message: error?.message || 'import failed'
+              });
             });
           })
           .catch((error: any) => {
@@ -719,35 +777,50 @@ function handleMessage(
           }
 
           const scriptPath = path.join(context.projectRoot, 'scripts', 'chrome-export-converter.mjs');
-          const displayNameArg = session.displayName ? ` --display-name ${quoteForShell(session.displayName)}` : '';
-          const command = `node "${scriptPath}" "${sourceDir}" "${outputName}"${displayNameArg}`;
+          const commandArgs = [scriptPath, sourceDir, outputName];
+          if (session.displayName) {
+            commandArgs.push('--display-name', session.displayName);
+          }
+          commandArgs.push('--target-dir', session.outputRelativeDir);
 
           sendWsMessage(ws, { type: 'chrome-export:status', transferId, stage: 'importing' });
 
-          exec(command, (error, stdout, stderr) => {
-            if (error) {
+          void runCommand({
+            command: nodeCommand,
+            args: commandArgs,
+            cwd: context.projectRoot,
+            capture: true,
+          }).then((result) => {
+            if (result.code !== 0) {
               sendWsMessage(ws, {
                 type: 'chrome-export:error',
                 transferId,
-                message: error.message || 'import failed'
+                message: result.stderr || result.stdout || 'import failed'
               });
             } else {
-              const outputDir = path.join(context.projectRoot, 'src', 'pages', outputName);
+              const outputDir = resolvePrototypeOutputDir(context.projectRoot, session.outputRelativeDir);
               sendWsMessage(ws, {
                 type: 'chrome-export:done',
                 transferId,
                 pageName: outputName,
                 displayName: session.displayName,
+                outputRelativeDir: session.outputRelativeDir,
                 sourceDir,
                 outputDir,
-                stdout: stdout ? String(stdout).trim() : undefined,
-                stderr: stderr ? String(stderr).trim() : undefined
+                stdout: result.stdout ? String(result.stdout).trim() : undefined,
+                stderr: result.stderr ? String(result.stderr).trim() : undefined
               });
               if (fs.existsSync(transferDir)) {
                 fs.rmSync(transferDir, { recursive: true, force: true });
               }
               context.uploadSessions.delete(transferId);
             }
+          }).catch((error: any) => {
+            sendWsMessage(ws, {
+              type: 'chrome-export:error',
+              transferId,
+              message: error?.message || 'import failed'
+            });
           });
         }
       }
